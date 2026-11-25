@@ -7,7 +7,7 @@ editor: visual
 ## Libraries
 
 ```{r}
-#| message: false
+#| warning: false
 
 library(ggplot2)
 library(tidycensus)
@@ -180,6 +180,13 @@ housing_tracts <- merge(
   acs_tracts,
   by = "GEOID",
   all.x = TRUE
+)
+
+# Save the merged dataset.
+write.csv(
+  housing_tracts,
+  "data/housing_tracts_merged.csv",
+  row.names = FALSE
 )
 
 # Check how many HUD tracts matched a Census row.
