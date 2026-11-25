@@ -1,0 +1,231 @@
+---
+title: "Course Project"
+format: html
+editor: visual
+---
+
+## Libraries
+
+```{r}
+library(ggplot2)
+library(tidycensus)
+
+# API key
+# tidycensus::census_api_key("a23be3a653f43d405af3dc81b8ab78acf93b6972", install = TRUE)
+```
+
+## Getting the U.S. Census Bureau’s American Community Survey Data
+
+```{r}
+acs <- get_acs(
+  geography = "tract",
+  state = "MA",
+  year = 2024,
+  survey = "acs5",
+  variables = c(
+    rent_burden_total = "B25070_001",
+    rent_30_to_34 = "B25070_007",
+    rent_35_to_39 = "B25070_008",
+    rent_40_to_49 = "B25070_009",
+    rent_50_plus = "B25070_010",
+    burden_unknown = "B25070_011",
+    renter_households = "B25003_003",
+    median_gross_rent = "B25064_001",
+    median_renter_income = "B25119_003"
+  ),
+  output = "wide"
+)
+
+# Count households spending 30% or more on rent and utilities.
+burdened <- acs$rent_30_to_34E + acs$rent_35_to_39E +
+  acs$rent_40_to_49E + acs$rent_50_plusE
+
+# Use only households whose rent burden could be calculated.
+known <- acs$rent_burden_totalE - acs$burden_unknownE
+acs$pct_rent_burdened <- ifelse(known > 0, 100 * burdened / known, NA_real_)
+
+dir.create("data", showWarnings = FALSE)
+write.csv(acs, "data/acs_ma_tracts_2024.csv", row.names = FALSE)
+
+head(acs[c("GEOID", "renter_householdsE", "pct_rent_burdened")])
+```
+
+## Getting the U.S. Department of Housing and Urban Development Data
+
+```{r}
+# Read HUD data as text so geographic IDs keep any leading zeros.
+hud <- read.csv("data/hud_lihtc_properties.csv", colClasses = "character")
+
+# Properties placed in service in 1997–2001 reach Year 30 in 2027–2031.
+hud_ma <- subset(
+  hud,
+  PROJ_ST == "MA" & YR_PIS %in% as.character(1997:2001)
+)
+
+nrow(hud_ma)
+table(hud_ma$YR_PIS)
+
+# Find the tract-related columns available in this download.
+grep("TRACT|GEOID", names(hud), value = TRUE, ignore.case = TRUE)
+```
+
+```{r}
+library(sf)
+library(tigris)
+
+# Keep records with usable coordinates and HUD's recommended quality codes.
+hud_ma$LAT <- as.numeric(hud_ma$LAT)
+hud_ma$LON <- as.numeric(hud_ma$LON)
+
+hud_located <- subset(
+  hud_ma,
+  LVL2KX %in% c("R", "4") & is.finite(LAT) & is.finite(LON)
+)
+
+# Convert property coordinates to points and load 2024 tract boundaries.
+properties <- st_as_sf(hud_located, coords = c("LON", "LAT"), crs = 4326)
+ma_tracts <- tracts(state = "MA", year = 2024, cb = FALSE)
+properties <- st_transform(properties, st_crs(ma_tracts))
+
+# Assign a GEOID where the property matches exactly one tract.
+matches <- st_intersects(properties, ma_tracts)
+one_match <- lengths(matches) == 1
+
+hud_located$GEOID <- NA_character_
+hud_located$GEOID[one_match] <- ma_tracts$GEOID[
+  unlist(matches[one_match], use.names = FALSE)
+]
+
+c(
+  total_records = nrow(hud_ma),
+  usable_coordinates = nrow(hud_located),
+  matched_to_one_tract = sum(one_match)
+)
+
+head(hud_located[c("HUD_ID", "YR_PIS", "LI_UNITS", "GEOID")])
+```
+
+```{r}
+# Keep the HUD records that matched a Census tract.
+hud_matched <- subset(hud_located, !is.na(GEOID))
+hud_matched$low_income_units <- as.numeric(hud_matched$LI_UNITS)
+
+# Check for missing or negative unit counts and repeated HUD IDs.
+c(
+  tracts = length(unique(hud_matched$GEOID)),
+  missing_unit_counts = sum(is.na(hud_matched$low_income_units)),
+  negative_unit_counts = sum(hud_matched$low_income_units < 0, na.rm = TRUE),
+  repeated_hud_ids = sum(duplicated(hud_matched$HUD_ID))
+)
+
+# Check whether different records share the same street address and city.
+address <- toupper(trimws(hud_matched$PROJ_ADD))
+city <- toupper(trimws(hud_matched$PROJ_CTY))
+address_key <- paste(city, address)
+repeat_address <- !is.na(address) & nzchar(address) &
+  (duplicated(address_key) | duplicated(address_key, fromLast = TRUE))
+
+hud_matched[repeat_address,
+            c("HUD_ID", "PROJECT", "PROJ_ADD", "PROJ_CTY", "YR_PIS", "LI_UNITS")]
+```
+
+```{r}
+hud_matched[is.na(hud_matched$low_income_units),
+            c("HUD_ID", "PROJECT", "PROJ_CTY", "GEOID", "LI_UNITS")]
+
+hud_matched[repeat_address,
+            c("HUD_ID", "PROJECT", "PROJ_ADD", "PROJ_CTY", "YR_PIS", "LI_UNITS")]
+```
+
+```{r}
+# Count HUD records and add up reported units by tract.
+hud_by_tract <- aggregate(
+  cbind(
+    hud_records = rep(1L, nrow(hud_matched)),
+    missing_unit_counts = as.integer(is.na(hud_matched$low_income_units)),
+    reported_low_income_units = replace(
+      hud_matched$low_income_units,
+      is.na(hud_matched$low_income_units),
+      0
+    )
+  ) ~ GEOID,
+  data = hud_matched,
+  FUN = sum
+)
+
+# Leave the unit total unknown if every record in the tract is missing a count.
+all_counts_missing <- hud_by_tract$missing_unit_counts == hud_by_tract$hud_records
+hud_by_tract$reported_low_income_units[all_counts_missing] <- NA_real_
+
+nrow(hud_by_tract)
+hud_by_tract[hud_by_tract$GEOID == "25027757500", ]
+sum(repeat_address)
+```
+
+```{r}
+# Read the Census file and keep the tract ID as text.
+acs_tracts <- read.csv(
+  "data/acs_ma_tracts_2024.csv",
+  colClasses = c(GEOID = "character")
+)
+
+# Check that the Census file has one row per tract.
+stopifnot(anyDuplicated(acs_tracts$GEOID) == 0)
+
+# Keep all HUD tracts and attach the Census data.
+housing_tracts <- merge(
+  hud_by_tract,
+  acs_tracts,
+  by = "GEOID",
+  all.x = TRUE
+)
+
+# Check how many HUD tracts matched a Census row.
+matched <- housing_tracts$GEOID %in% acs_tracts$GEOID
+
+c(
+  hud_tracts = nrow(housing_tracts),
+  matched_to_acs = sum(matched),
+  unmatched_to_acs = sum(!matched)
+)
+
+head(housing_tracts[c(
+  "GEOID", "reported_low_income_units", "pct_rent_burdened"
+)])
+```
+
+```{r}
+# Keep tracts with values for both measures.
+plot_data <- housing_tracts[complete.cases(
+  housing_tracts[c("pct_rent_burdened", "reported_low_income_units")]
+), ]
+
+ggplot(plot_data, aes(
+  x = pct_rent_burdened,
+  y = reported_low_income_units
+)) +
+  geom_point(color = "steelblue", alpha = 0.7, size = 2) +
+  labs(
+    title = "Rent burden and low-income units approaching Year 30",
+    subtitle = "Each point is a Massachusetts census tract",
+    x = "Renters spending at least 30% of income on housing (%)",
+    y = "Reported low-income units reaching Year 30, 2027–2031",
+    caption = "Sources: HUD LIHTC property data and 2020–2024 ACS estimates"
+  ) +
+  theme_minimal()
+
+# Check how many merged tracts are shown in the plot.
+c(plotted = nrow(plot_data), omitted = nrow(housing_tracts) - nrow(plot_data))
+```
+
+```{r}
+tract_details <- plot_data[c(
+  "GEOID", "NAME", "reported_low_income_units", "pct_rent_burdened"
+)]
+
+tract_details$pct_rent_burdened <- round(tract_details$pct_rent_burdened, 1)
+
+head(tract_details[order(-tract_details$reported_low_income_units), ], 6)
+
+c(plotted = nrow(plot_data), omitted = nrow(housing_tracts) - nrow(plot_data))
+```
