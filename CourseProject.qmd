@@ -7,6 +7,8 @@ editor: visual
 ## Libraries
 
 ```{r}
+#| message: false
+
 library(ggplot2)
 library(tidycensus)
 
@@ -53,8 +55,8 @@ head(acs[c("GEOID", "renter_householdsE", "pct_rent_burdened")])
 ## Getting the U.S. Department of Housing and Urban Development Data
 
 ```{r}
-# Read HUD data as text so geographic IDs keep any leading zeros.
-hud <- read.csv("data/hud_lihtc_properties.csv", colClasses = "character")
+# Read Massachusetts HUD data as text to preserve geographic IDs.
+hud <- read.csv("data/hud_lihtc_ma.csv", colClasses = "character")
 
 # Properties placed in service in 1997–2001 reach Year 30 in 2027–2031.
 hud_ma <- subset(
