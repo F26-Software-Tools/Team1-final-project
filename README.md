@@ -13,27 +13,13 @@ We are studying housing affordability in Massachusetts, focusing on tax-credit p
 
 **Follow-up analysis:** We compare each neighborhood's total number of these apartments with the number per 100 renter households. This shows whether smaller neighborhoods move up the list once the size of their rental market is taken into account.
 
-**Decision maker (proposed):** housing staff at the Massachusetts Executive Office of Housing and Livable Communities (EOHLC), the state's tax-credit allocating agency, who decide which properties to review and prioritize for preservation.
-
-The topic remains subject to professor approval under Option 1. Jason is coordinating that meeting.
+**Decision maker (proposed):** Housing staff at the Massachusetts Executive Office of Housing and Livable Communities (EOHLC), the state's tax-credit allocating agency, who decide which properties to review and prioritize for preservation.
 
 ## 2. GitHub Repository and Collaboration
 
-Tin created the team repository within the course GitHub organization and created the `Team_1Checkpoint_1.0` branch for this submission.
+Jason created the team repository within the course GitHub organization and created the `Team_1Checkpoint_2.0` branch for this submission.
 
-Creating the repository and sending collaborator invitations were straightforward early successes. One challenge was forming the branch because of a misunderstanding: Tin first created a separate repository before setting up the one within the course organization. Working through this clarified how to organize our checkpoint submission.
-
-The repository is organized so the analysis can be rerun from the files it contains:
-
-| Path | Contents |
-|---|---|
-| `CourseProject.qmd` | Main R/Quarto analysis: data retrieval, tract matching, merge, charts, follow-up analysis, cross-check |
-| `data/` | HUD LIHTC property data (national and Massachusetts), ACS 2020–2024 tract data, CEDAC cross-check table |
-| `output/` | Merged tract table, review-first list, top-10 tables, descriptive statistics |
-| `figures/` | Charts used in this README and the final report |
-| `FINDINGS.md` | Written results |
-
-As we collaborate on analytical files, each of us will work on a named branch, use descriptive commit messages, and merge through pull requests the other reviews. One lesson already learned: Census API keys must never be saved in files committed to GitHub. Each team member stores their key locally with `census_api_key(..., install = TRUE)`.
+The repository is organized so the analysis can be rerun from the files.
 
 ## 3. Merging Multiple Data Sources
 
