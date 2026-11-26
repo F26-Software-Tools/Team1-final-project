@@ -74,5 +74,5 @@ The key limitations to discuss are already clear:
 
 ## Individual Contributions
 
-- **Tin Vu:** Participated in topic discussions, set up the team repository within the course GitHub organization, and created the checkpoint branch.
-- **Jason Sauer:** Participated in topic discussions, coordinated the professor meeting, developed the research question, and prepared the data, R analysis, charts, and written findings with AI assistance.
+- **Tin Vu:** Participated in topic discussions, set up the team repository within the course GitHub organization, and created the first checkpoint branch. Then for this checkpoint Tin aggregated data sources, researched census data, R analysis, plotted chart.  
+- **Jason Sauer:** Participated in topic discussions, coordinated the professor meeting, developed the new research question, added data research, R analysis, synthesized and edited Project Checkpoint 2.
